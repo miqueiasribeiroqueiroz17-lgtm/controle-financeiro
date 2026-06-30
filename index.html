@@ -324,7 +324,6 @@ window.loadFromFirebaseKey = function(key, defaultVal) {
   <div class="tabs-inner">
     <button class="tab-btn active" onclick="showTab('resumo')">📊 Resumo</button>
     <button class="tab-btn" onclick="showTab('pagamentos')">✅ Pagamentos</button>
-    <button class="tab-btn" onclick="showTab('mensal')">📅 Mês a Mês</button>
     <button class="tab-btn" onclick="showTab('dividas')">💳 Dívidas</button>
     <button class="tab-btn" onclick="showTab('historico')">📜 Histórico</button>
     <button class="tab-btn" onclick="showTab('poupanca')">💰 Poupança</button>
@@ -355,17 +354,6 @@ window.loadFromFirebaseKey = function(key, defaultVal) {
   </div>
 
   <!-- MENSAL -->
-  <div id="tab-mensal" class="tab-panel">
-    <div class="mes-btns" id="mensal-btns"></div>
-    <div class="grid2">
-      <div class="panel" id="mensal-lista"></div>
-      <div class="panel">
-        <h3>Composição das despesas</h3>
-        <canvas id="chart-mensal" height="260"></canvas>
-      </div>
-    </div>
-  </div>
-
   <!-- PAGAMENTOS -->
   <div id="tab-pagamentos" class="tab-panel">
     <div class="mes-btns" id="pag-btns"></div>
@@ -587,7 +575,6 @@ function showTab(name) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
   document.getElementById("tab-"+name).classList.add("active");
   event.target.classList.add("active");
-  if (name === "mensal") renderMensal();
   if (name === "pagamentos") renderPagamentos();
   if (name === "dividas") renderDividas();
   if (name === "gerenciar") renderGerenciar();
