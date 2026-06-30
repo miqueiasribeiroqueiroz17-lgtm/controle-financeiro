@@ -294,7 +294,7 @@ window.loadFromFirebaseKey = function(key, defaultVal) {
     <div class="header-stats">
       <div class="stat-item">
         <div class="stat-label">Renda</div>
-        <div class="stat-value" style="color:#22c55e">R$ 6.000,00</div>
+        <div class="stat-value" id="hdr-renda" style="color:#22c55e">R$ 6.000,00</div>
       </div>
       <div class="stat-item">
         <div class="stat-label">Despesas/mês</div>
@@ -614,15 +614,19 @@ function showTab(name) {
 
 // ========== RESUMO ==========
 function renderResumo() {
-  const m = calcMes(0);
+  let idxAtual = getMesAtualIdx();
+  if (idxAtual < 0) idxAtual = 0; // ainda não começou o plano: mostra o primeiro mês
+  if (idxAtual >= MESES.length) idxAtual = MESES.length - 1; // plano encerrado: mostra o último mês
+  const m = calcMes(idxAtual);
   const ess = ESSENCIAIS.reduce((s,e)=>s+e.valor,0);
 
+  document.getElementById("hdr-renda").textContent = fmt(RENDA);
   document.getElementById("hdr-desp").textContent = fmt(m.totalDesp);
   document.getElementById("hdr-sobra").textContent = fmt(m.sobra);
 
   const cards = [
     { label:"Renda Mensal", val:RENDA, cor:"#22c55e", icon:"💰" },
-    { label:"Dívidas (Jul/26)", val:m.totalDiv, cor:"#ef4444", icon:"💳" },
+    { label:`Dívidas (${MESES[idxAtual]})`, val:m.totalDiv, cor:"#ef4444", icon:"💳" },
     { label:"Essenciais", val:ess, cor:"#3b82f6", icon:"🏠" },
     { label:"Sobra Atual", val:m.sobra, cor:"#38bdf8", icon:"✅" },
     { label:"Reserva Ideal", val:1935.66, cor:"#a855f7", icon:"🛡️" },
@@ -667,14 +671,17 @@ function renderResumo() {
 
   // Análise rápida
   const comp = ((m.totalDesp/RENDA)*100).toFixed(1);
-  const empPct = (((1190.13+909.42+244.84)/RENDA)*100).toFixed(1);
+  const totalEmprestimosMes = m.det.filter(d=>d.cat==="Empréstimo").reduce((s,d)=>s+d.valor,0);
+  const empPct = ((totalEmprestimosMes/RENDA)*100).toFixed(1);
+  const maiorPrazo = [...DIVIDAS].sort((a,b)=>b.parcelas.length-a.parcelas.length)[0];
+  const mesesQuitarTudo = maiorPrazo ? maiorPrazo.parcelas.length : 0;
   const registroPoupanca = loadPoupanca();
   const totalGuardadoReal = Object.values(registroPoupanca).reduce((s,v) => s + parseFloat(v||0), 0);
   const pctReservaReal = Math.min(100, Math.round((totalGuardadoReal / RESERVA_IDEAL) * 100));
   document.getElementById("analise-grid").innerHTML = [
     { label:"Comprometimento da renda", val:`${comp}%`, sub:"Ideal: abaixo de 70%", cor:"#ef4444" },
     { label:"Empréstimos vs renda", val:`${empPct}%`, sub:"Apenas empréstimos", cor:"#f97316" },
-    { label:"Meses para quitar tudo", val:"~31 meses", sub:"Empréstimo BV é o mais longo", cor:"#38bdf8" },
+    { label:"Meses para quitar tudo", val:`~${mesesQuitarTudo} meses`, sub:maiorPrazo ? `${maiorPrazo.nome} é o mais longo` : "—", cor:"#38bdf8" },
     { label:"Reserva de emergência", val:`${pctReservaReal}% atingida`, sub:fmt(totalGuardadoReal)+" de "+fmt(RESERVA_IDEAL), cor:"#22c55e" },
   ].map(c=>`
     <div class="alert-card">
@@ -846,7 +853,7 @@ function renderDividas() {
 
   document.getElementById("dividas-lista").innerHTML = sorted.map(d=>{
     const cor = d.cat==="Empréstimo"?"#ef4444":"#f97316";
-    const pct = Math.round((d.qtd/31)*100);
+    const pct = Math.round((d.qtd/MESES.length)*100);
     return `<div class="divida-card" style="border:1px solid ${cor}33">
       <div class="divida-header">
         <div>
@@ -1539,13 +1546,14 @@ function renderGerenciar() {
   const dl = document.getElementById('ger-dividas-lista');
   const cartoes = DIVIDAS.filter(d=>d.cat==='Cartão');
   const emprestimos = DIVIDAS.filter(d=>d.cat==='Empréstimo');
+  const outras = DIVIDAS.filter(d=>d.cat!=='Cartão' && d.cat!=='Empréstimo');
 
   function renderGrupo(lista, offset) {
     return lista.map((d, j) => {
       const i = DIVIDAS.indexOf(d);
-      const cor = d.cat === 'Empréstimo' ? '#ef4444' : '#f97316';
-      const bgCor = d.cat === 'Empréstimo' ? '#ef444422' : '#f9731622';
-      const icon = d.cat === 'Empréstimo' ? '💸' : '💳';
+      const cor = d.cat === 'Empréstimo' ? '#ef4444' : d.cat === 'Cartão' ? '#f97316' : '#3b82f6';
+      const bgCor = d.cat === 'Empréstimo' ? '#ef444422' : d.cat === 'Cartão' ? '#f9731622' : '#3b82f622';
+      const icon = d.cat === 'Empréstimo' ? '💸' : d.cat === 'Cartão' ? '💳' : '📦';
       const ativas = d.parcelas.filter(v => v > 0).length;
       const total = d.parcelas.reduce((s,v)=>s+v,0);
       const proxVal = d.parcelas.find(v=>v>0) || 0;
@@ -1586,9 +1594,14 @@ function renderGerenciar() {
       ${renderGrupo(cartoes)}
     </div>
     <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">💸 Empréstimos</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px${outras.length ? ';margin-bottom:20px' : ''}">
       ${renderGrupo(emprestimos)}
-    </div>`;
+    </div>
+    ${outras.length ? `
+    <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">📦 Outras Dívidas</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+      ${renderGrupo(outras)}
+    </div>` : ''}`;
 }
 
 // --- RENDA ---
