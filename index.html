@@ -668,11 +668,14 @@ function renderResumo() {
   // Análise rápida
   const comp = ((m.totalDesp/RENDA)*100).toFixed(1);
   const empPct = (((1190.13+909.42+244.84)/RENDA)*100).toFixed(1);
+  const registroPoupanca = loadPoupanca();
+  const totalGuardadoReal = Object.values(registroPoupanca).reduce((s,v) => s + parseFloat(v||0), 0);
+  const pctReservaReal = Math.min(100, Math.round((totalGuardadoReal / RESERVA_IDEAL) * 100));
   document.getElementById("analise-grid").innerHTML = [
     { label:"Comprometimento da renda", val:`${comp}%`, sub:"Ideal: abaixo de 70%", cor:"#ef4444" },
     { label:"Empréstimos vs renda", val:`${empPct}%`, sub:"Apenas empréstimos", cor:"#f97316" },
     { label:"Meses para quitar tudo", val:"~31 meses", sub:"Empréstimo BV é o mais longo", cor:"#38bdf8" },
-    { label:"Reserva de emergência", val:`${((m.sobra/1935.66)*100).toFixed(0)}% atingida`, sub:"Meta: "+fmt(1935.66)+"/mês", cor:"#22c55e" },
+    { label:"Reserva de emergência", val:`${pctReservaReal}% atingida`, sub:fmt(totalGuardadoReal)+" de "+fmt(RESERVA_IDEAL), cor:"#22c55e" },
   ].map(c=>`
     <div class="alert-card">
       <div class="label">${c.label}</div>
