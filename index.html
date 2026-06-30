@@ -600,7 +600,7 @@ function renderResumo() {
     { label:`Dívidas (${MESES[idxAtual]})`, val:m.totalDiv, cor:"#ef4444", icon:"💳" },
     { label:"Essenciais", val:ess, cor:"#3b82f6", icon:"🏠" },
     { label:"Sobra Atual", val:m.sobra, cor:"#38bdf8", icon:"✅" },
-    { label:"Reserva Ideal", val:1935.66, cor:"#a855f7", icon:"🛡️" },
+    { label:"Reserva Ideal", val:4000.00, cor:"#a855f7", icon:"🛡️" },
   ];
   document.getElementById("resumo-cards").innerHTML = cards.map(c => `
     <div class="card" style="border-color:${c.cor}22">
@@ -646,6 +646,11 @@ function renderResumo() {
   const empPct = ((totalEmprestimosMes/RENDA)*100).toFixed(1);
   const maiorPrazo = [...DIVIDAS].sort((a,b)=>b.parcelas.length-a.parcelas.length)[0];
   const mesesQuitarTudo = maiorPrazo ? maiorPrazo.parcelas.length : 0;
+  // Força busca atualizada da poupança do Firebase
+  if (window.loadFromFirebaseKey) {
+    const fbPoupa = window.loadFromFirebaseKey('poupanca', null);
+    if (fbPoupa !== null) _poupancaCache = fbPoupa;
+  }
   const registroPoupanca = loadPoupanca();
   const totalGuardadoReal = Object.values(registroPoupanca).reduce((s,v) => s + parseFloat(v||0), 0);
   const pctReservaReal = Math.min(100, Math.round((totalGuardadoReal / RESERVA_IDEAL) * 100));
@@ -1166,7 +1171,7 @@ function renderChartDividaEvolucao() {
 }
 
 // ========== META RESERVA DE EMERGÊNCIA ==========
-const RESERVA_IDEAL = 1935.66;
+const RESERVA_IDEAL = 4000.00;
 
 
 // ========== POUPANÇA ==========
@@ -1188,6 +1193,7 @@ function savePoupanca(data) {
   _poupancaCache = data; // Update cache immediately
   if (window.saveToFirebase) window.saveToFirebase('poupanca', data);
   try { localStorage.setItem(POUPANCA_KEY, JSON.stringify(data)); } catch {}
+  renderResumo();
 }
 
 function renderPoupanca() {
@@ -1213,7 +1219,7 @@ function renderPoupanca() {
         <div id="poupa-total" style="font-size:24px;font-weight:700;color:#22c55e;margin-top:4px">${fmt(totalGuardado)}</div>
       </div>
       <div style="background:#1e293b;border-radius:12px;padding:16px 18px;border:1px solid #a855f733">
-        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px">Meta reserva</div>
+        <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1px">Reserva Ideal</div>
         <div style="font-size:24px;font-weight:700;color:#a855f7;margin-top:4px">${fmt(RESERVA_IDEAL)}</div>
       </div>
       <div style="background:#1e293b;border-radius:12px;padding:16px 18px;border:1px solid ${corReserva}33">
@@ -1315,7 +1321,7 @@ function atualizarTotaisPoupanca() {
     if (!isNaN(v) && v > 0) totalGuardado += v;
   });
   
-  const RESERVA_IDEAL = 1935.66;
+  const RESERVA_IDEAL = 4000.00;
   const pct = Math.min(100, Math.round((totalGuardado / RESERVA_IDEAL) * 100));
   const corReserva = pct >= 100 ? '#22c55e' : pct >= 50 ? '#a855f7' : '#f97316';
   const mesesReg = Array.from(inputs).filter(i => parseFloat(i.value) > 0).length;
@@ -1897,6 +1903,7 @@ function syncFromFirebase() {
     // Sync poupanca cache
     const fbPoupa = window.loadFromFirebaseKey('poupanca', null);
     if (fbPoupa !== null) _poupancaCache = fbPoupa;
+    else _poupancaCache = null; // force reload
     renderResumo();
   }
 }
