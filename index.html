@@ -329,7 +329,7 @@ window.loadFromFirebaseKey = function(key, defaultVal) {
     <div class="cards" id="resumo-cards"></div>
     <div class="grid2">
       <div class="panel">
-        <h3>Distribuição das Despesas (Jul/26)</h3>
+        <h3 id="titulo-pizza">Distribuição das Despesas (Jul/26)</h3>
         <canvas id="chart-pizza" height="220"></canvas>
       </div>
       <div class="panel">
@@ -340,25 +340,6 @@ window.loadFromFirebaseKey = function(key, defaultVal) {
     <div class="alert-panel">
       <h3>⚠️ Análise Rápida</h3>
       <div class="alert-grid" id="analise-grid"></div>
-    </div>
-    <div class="panel" style="margin-top:20px;border:1px solid #f9731644">
-      <h3 style="color:#f97316">🎯 Simulador de Meta de Quitação</h3>
-      <div style="font-size:12px;color:#64748b;margin-bottom:16px">Quanto a mais você consegue pagar por mês para quitar o Empréstimo BV mais rápido?</div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">
-        <div>
-          <div style="font-size:11px;color:#64748b;margin-bottom:4px">Pagamento extra mensal (R$)</div>
-          <input type="number" id="meta-extra" value="0" min="0" step="50"
-            style="background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px;width:160px;outline:none"
-            oninput="calcularMeta()"/>
-        </div>
-        <div>
-          <div style="font-size:11px;color:#64748b;margin-bottom:4px">Dívida alvo</div>
-          <select id="meta-divida" onchange="calcularMeta()"
-            style="background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:13px;outline:none;cursor:pointer">
-          </select>
-        </div>
-      </div>
-      <div id="meta-resultado"></div>
     </div>
 
   </div>
@@ -457,6 +438,18 @@ window.loadFromFirebaseKey = function(key, defaultVal) {
         <button class="btn-sm-orange" onclick="abrirModalNovaDivida()">+ Adicionar</button>
       </div>
       <div id="ger-dividas-lista"></div>
+    </div>
+
+    <div class="ger-section">
+      <div class="ger-section-title">
+        <span>💾 Backup e Restauração</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn-sm-orange" onclick="exportarBackup()">⬇️ Exportar Backup (.json)</button>
+        <button class="btn-sm-orange" onclick="document.getElementById('input-backup-file').click()">⬆️ Importar Backup</button>
+        <input type="file" id="input-backup-file" accept="application/json" style="display:none" onchange="importarBackup(event)"/>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:10px">Salva uma cópia de segurança de tudo (renda, dívidas, essenciais, pagamentos e poupança) num arquivo .json que você pode guardar ou usar pra restaurar depois.</div>
     </div>
   </div>
 
@@ -607,7 +600,6 @@ function showTab(name) {
   if (name === "dividas") renderDividas();
   if (name === "projecao") { renderProjecao(); renderChartDividaEvolucao(); }
   if (name === "gerenciar") renderGerenciar();
-  if (name === "resumo") { initMetaDivida(); }
   if (name === "historico") renderHistorico();
   if (name === "poupanca") renderPoupanca();
 }
@@ -621,6 +613,7 @@ function renderResumo() {
   const ess = ESSENCIAIS.reduce((s,e)=>s+e.valor,0);
 
   document.getElementById("hdr-renda").textContent = fmt(RENDA);
+  document.getElementById("titulo-pizza").textContent = `Distribuição das Despesas (${MESES[idxAtual]})`;
   document.getElementById("hdr-desp").textContent = fmt(m.totalDesp);
   document.getElementById("hdr-sobra").textContent = fmt(m.sobra);
 
@@ -1138,191 +1131,8 @@ function renderChartDividaEvolucao() {
   });
 }
 
-// ========== META DE QUITAÇÃO ==========
-function initMetaDivida() {
-  const sel = document.getElementById('meta-divida');
-  if (!sel) return;
-  sel.innerHTML = DIVIDAS.map((d,i) => 
-    `<option value="${i}">${d.nome}</option>`
-  ).join('');
-  calcularMeta();
-}
-
-function calcularMeta() {
-  const extra = parseFloat(document.getElementById('meta-extra')?.value) || 0;
-  const idx = parseInt(document.getElementById('meta-divida')?.value);
-  const resultado = document.getElementById('meta-resultado');
-  if (!resultado || isNaN(idx)) return;
-
-  const d = DIVIDAS[idx];
-  if (!d) return;
-
-  const parcelas = d.parcelas.filter(v => v > 0);
-  if (parcelas.length === 0) {
-    resultado.innerHTML = '<div style="color:#64748b;font-size:13px">Nenhuma parcela cadastrada.</div>';
-    return;
-  }
-
-  const totalDivida = parcelas.reduce((s,v) => s+v, 0);
-  const parcelaMensal = parcelas[0];
-  const mesesOriginal = parcelas.length;
-
-  // Simular quitação antecipada
-  let saldo = totalDivida;
-  let mesesComExtra = 0;
-  for (let i = 0; i < parcelas.length; i++) {
-    saldo -= (parcelas[i] + extra);
-    mesesComExtra++;
-    if (saldo <= 0) break;
-  }
-
-  const mesesEconomizados = mesesOriginal - mesesComExtra;
-  const economiaTotal = mesesEconomizados * parcelaMensal;
-  const corEcon = mesesEconomizados > 0 ? '#22c55e' : '#64748b';
-
-  resultado.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
-      <div style="background:#0f172a;border-radius:10px;padding:14px;border:1px solid #1e3a5f">
-        <div style="font-size:11px;color:#64748b">Total da dívida</div>
-        <div style="font-size:18px;font-weight:700;color:#ef4444">${fmt(totalDivida)}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:10px;padding:14px;border:1px solid #1e3a5f">
-        <div style="font-size:11px;color:#64748b">Prazo original</div>
-        <div style="font-size:18px;font-weight:700;color:#f97316">${mesesOriginal} meses</div>
-      </div>
-      <div style="background:#0f172a;border-radius:10px;padding:14px;border:1px solid ${corEcon}44">
-        <div style="font-size:11px;color:#64748b">Com extra de ${fmt(extra)}/mês</div>
-        <div style="font-size:18px;font-weight:700;color:${corEcon}">${mesesComExtra} meses</div>
-      </div>
-      <div style="background:#0f172a;border-radius:10px;padding:14px;border:1px solid ${corEcon}44">
-        <div style="font-size:11px;color:#64748b">Você economiza</div>
-        <div style="font-size:18px;font-weight:700;color:${corEcon}">${mesesEconomizados > 0 ? mesesEconomizados + ' meses' : '—'}</div>
-        ${economiaTotal > 0 ? `<div style="font-size:11px;color:#22c55e;margin-top:2px">${fmt(economiaTotal)} a menos</div>` : ''}
-      </div>
-    </div>
-    ${mesesEconomizados > 0 ? `
-    <div style="margin-top:12px;background:#14532d;border-radius:10px;padding:12px 16px;border:1px solid #22c55e44;font-size:13px;color:#86efac">
-      🎉 Pagando <strong>${fmt(extra)}</strong> a mais por mês você quita <strong>${d.nome}</strong> em <strong>${mesesComExtra} meses</strong> — <strong>${mesesEconomizados} meses antes</strong> do prazo!
-    </div>` : '<div style="margin-top:10px;font-size:12px;color:#64748b">Aumente o valor extra para ver o impacto na quitação.</div>'}
-  `;
-}
-
-
 // ========== META RESERVA DE EMERGÊNCIA ==========
-const RESERVA_KEY = 'mrqlog_reserva_v1';
-const META_MENSAL_KEY = 'mrqlog_meta_mensal_v1';
 const RESERVA_IDEAL = 1935.66;
-
-function salvarReserva(val) {
-  localStorage.setItem(RESERVA_KEY, val);
-}
-function salvarMetaMensal(val) {
-  localStorage.setItem(META_MENSAL_KEY, val);
-}
-
-function calcularReserva() {
-  const atual = parseFloat(document.getElementById('reserva-atual')?.value) || 0;
-  const resultado = document.getElementById('reserva-resultado');
-  if (!resultado) return;
-
-  const pct = Math.min(100, Math.round((atual / RESERVA_IDEAL) * 100));
-  const falta = Math.max(0, RESERVA_IDEAL - atual);
-  const cor = pct >= 100 ? '#22c55e' : pct >= 50 ? '#fbbf24' : '#ef4444';
-  const emoji = pct >= 100 ? '🎉' : pct >= 75 ? '💪' : pct >= 50 ? '📈' : pct >= 25 ? '🚀' : '🌱';
-
-  resultado.innerHTML = `
-    <div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:13px;color:#94a3b8">Progresso</span>
-        <span style="font-size:13px;font-weight:700;color:${cor}">${pct}%</span>
-      </div>
-      <div style="background:#0f172a;border-radius:10px;height:14px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:10px;transition:width 0.5s ease"></div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px">
-      <div style="background:#0f172a;border-radius:10px;padding:12px;border:1px solid #a855f733">
-        <div style="font-size:11px;color:#64748b">Já guardado</div>
-        <div style="font-size:18px;font-weight:700;color:#a855f7">${fmt(atual)}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:10px;padding:12px;border:1px solid #a855f733">
-        <div style="font-size:11px;color:#64748b">Meta</div>
-        <div style="font-size:18px;font-weight:700;color:#94a3b8">${fmt(RESERVA_IDEAL)}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:10px;padding:12px;border:1px solid ${cor}44">
-        <div style="font-size:11px;color:#64748b">Falta</div>
-        <div style="font-size:18px;font-weight:700;color:${cor}">${falta > 0 ? fmt(falta) : '✅ Meta atingida!'}</div>
-      </div>
-    </div>
-    <div style="margin-top:12px;background:#0f172a;border-radius:10px;padding:12px 16px;border:1px solid #a855f733;font-size:13px;color:#c4b5fd">
-      ${emoji} ${pct >= 100
-        ? 'Parabéns! Você atingiu sua reserva de emergência! 🎉'
-        : `Guardando sua sobra mensal de <strong>${fmt(930.34)}</strong>, você completa a reserva em <strong>${Math.ceil(falta/930.34)} ${Math.ceil(falta/930.34)===1?'mês':'meses'}</strong>.`}
-    </div>`;
-}
-
-// ========== META DE ECONOMIA MENSAL ==========
-function calcularMetaMensal() {
-  const meta = parseFloat(document.getElementById('meta-mensal')?.value) || 0;
-  const resultado = document.getElementById('meta-mensal-resultado');
-  if (!resultado) return;
-
-  const m = calcMes(0); // mês atual (julho)
-  const sobra = m.sobra;
-  const atingiu = sobra >= meta;
-  const cor = atingiu ? '#22c55e' : '#ef4444';
-  const diff = sobra - meta;
-  const pct = meta > 0 ? Math.min(100, Math.round((sobra / meta) * 100)) : 0;
-
-  if (meta === 0) {
-    resultado.innerHTML = '<div style="font-size:12px;color:#64748b">Digite sua meta mensal acima para ver a análise.</div>';
-    return;
-  }
-
-  resultado.innerHTML = `
-    <div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:13px;color:#94a3b8">Sua sobra vs meta</span>
-        <span style="font-size:13px;font-weight:700;color:${cor}">${pct}%</span>
-      </div>
-      <div style="background:#0f172a;border-radius:10px;height:14px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:${atingiu?'linear-gradient(90deg,#16a34a,#22c55e)':'linear-gradient(90deg,#dc2626,#ef4444)'};border-radius:10px;transition:width 0.5s ease"></div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px">
-      <div style="background:#0f172a;border-radius:10px;padding:12px;border:1px solid #22c55e33">
-        <div style="font-size:11px;color:#64748b">Sobra atual</div>
-        <div style="font-size:18px;font-weight:700;color:#22c55e">${fmt(sobra)}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:10px;padding:12px;border:1px solid #22c55e33">
-        <div style="font-size:11px;color:#64748b">Sua meta</div>
-        <div style="font-size:18px;font-weight:700;color:#94a3b8">${fmt(meta)}</div>
-      </div>
-      <div style="background:#0f172a;border-radius:10px;padding:12px;border:1px solid ${cor}44">
-        <div style="font-size:11px;color:#64748b">${atingiu ? 'Sobrando além da meta' : 'Faltando para a meta'}</div>
-        <div style="font-size:18px;font-weight:700;color:${cor}">${fmt(Math.abs(diff))}</div>
-      </div>
-    </div>
-    <div style="margin-top:12px;background:#0f172a;border-radius:10px;padding:12px 16px;border:1px solid ${cor}44;font-size:13px;color:${atingiu?'#86efac':'#fca5a5'}">
-      ${atingiu
-        ? `✅ Parabéns! Sua sobra de <strong>${fmt(sobra)}</strong> supera sua meta de <strong>${fmt(meta)}</strong>!`
-        : `⚠️ Sua sobra atual de <strong>${fmt(sobra)}</strong> está <strong>${fmt(Math.abs(diff))}</strong> abaixo da meta. Tente reduzir alguma despesa não essencial.`}
-    </div>`;
-}
-
-// Carregar valores salvos ao iniciar
-function initMetas() {
-  const reservaSalva = localStorage.getItem(RESERVA_KEY);
-  const metaSalva = localStorage.getItem(META_MENSAL_KEY);
-  if (reservaSalva) {
-    const el = document.getElementById('reserva-atual');
-    if (el) { el.value = reservaSalva; calcularReserva(); }
-  } else { calcularReserva(); }
-  if (metaSalva) {
-    const el = document.getElementById('meta-mensal');
-    if (el) { el.value = metaSalva; calcularMetaMensal(); }
-  } else { calcularMetaMensal(); }
-}
 
 
 // ========== POUPANÇA ==========
@@ -1709,6 +1519,79 @@ function excluirDivida(i) {
   showToast('🗑 ' + nome + ' removido');
 }
 
+// --- BACKUP / RESTAURAÇÃO ---
+function exportarBackup() {
+  const backup = {
+    app: 'MRQ Log - Controle Financeiro',
+    versao: APP_VERSION,
+    exportadoEm: new Date().toISOString(),
+    renda: RENDA,
+    essenciais: ESSENCIAIS,
+    dividas: DIVIDAS,
+    pagamentos: pagamentos,
+    poupanca: loadPoupanca()
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dataStr = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `mrqlog-backup-${dataStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('💾 Backup exportado com sucesso!');
+}
+
+function importarBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    let data;
+    try {
+      data = JSON.parse(e.target.result);
+    } catch {
+      showToast('⚠️ Arquivo inválido — não é um JSON legível');
+      event.target.value = '';
+      return;
+    }
+    const valido = data && typeof data.renda === 'number' && Array.isArray(data.essenciais) && Array.isArray(data.dividas);
+    if (!valido) {
+      showToast('⚠️ Esse arquivo não parece ser um backup do MRQ Log');
+      event.target.value = '';
+      return;
+    }
+    if (!confirm('Isso vai substituir TODOS os seus dados atuais (renda, dívidas, pagamentos e poupança) pelos do backup. Deseja continuar?')) {
+      event.target.value = '';
+      return;
+    }
+    RENDA = data.renda;
+    ESSENCIAIS = data.essenciais;
+    DIVIDAS = data.dividas;
+    salvarDados();
+
+    if (data.pagamentos && typeof data.pagamentos === 'object') {
+      pagamentos = data.pagamentos;
+      salvar();
+    }
+    if (data.poupanca && typeof data.poupanca === 'object') {
+      savePoupanca(data.poupanca);
+    }
+
+    event.target.value = '';
+    showToast('✅ Backup restaurado com sucesso!');
+    renderGerenciar();
+    renderResumo();
+  };
+  reader.onerror = function() {
+    showToast('⚠️ Erro ao ler o arquivo');
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
 // --- PARCELAS ---
 function abrirModalParcelas(i) {
   modalParcelaIdx = i;
@@ -1835,6 +1718,7 @@ function adicionarParcela() {
             <select id="input-div-cat" style="width:100%;background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:10px 12px;color:#e2e8f0;font-size:14px;outline:none;cursor:pointer;">
               <option value="Cartão">Cartão de Crédito</option>
               <option value="Empréstimo">Empréstimo</option>
+              <option value="Outras">Outras</option>
             </select>
           </div>
         </div>
@@ -1911,7 +1795,6 @@ function initApp() {
   }
   carregarDados();
   renderResumo();
-  initMetaDivida();
 }
 
 // Always init immediately with localStorage data
@@ -1919,7 +1802,6 @@ function initApp() {
 try { pagamentos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch {}
 carregarDados();
 renderResumo();
-initMetaDivida();
 
 // When Firebase is ready, sync data silently
 function syncFromFirebase() {
@@ -1939,7 +1821,6 @@ function syncFromFirebase() {
     const fbPoupa = window.loadFromFirebaseKey('poupanca', null);
     if (fbPoupa !== null) _poupancaCache = fbPoupa;
     renderResumo();
-    initMetaDivida();
   }
 }
 
@@ -1978,8 +1859,9 @@ function getMesAtualIdx() {
 const ALERT_DISMISSED_KEY = 'mrqlog_alert_dismissed';
 
 function checkPayAlert() {
-  const idx = getMesAtualIdx();
-  if (idx < 0) return; // fora do range
+  let idx = getMesAtualIdx();
+  if (idx < 0) idx = 0; // ainda não começou o plano: usa o primeiro mês (igual ao Resumo)
+  else if (idx >= MESES.length) idx = MESES.length - 1; // plano encerrado: usa o último mês
 
   // Verifica se já foi dispensado hoje
   const dismissed = localStorage.getItem(ALERT_DISMISSED_KEY);
@@ -2016,8 +1898,10 @@ function closeAlert() {
 
 function goToPagamentos() {
   closeAlert();
-  const idx = getMesAtualIdx();
-  if (idx >= 0) mesPagAtivo = idx;
+  let idx = getMesAtualIdx();
+  if (idx < 0) idx = 0;
+  else if (idx >= MESES.length) idx = MESES.length - 1;
+  mesPagAtivo = idx;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-pagamentos').classList.add('active');
