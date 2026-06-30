@@ -826,7 +826,13 @@ function renderDividas() {
       }
     });
     return { nome:d.nome, cat:d.cat, total, qtd, totalOriginal };
-  }).sort((a,b)=> a.qtd - b.qtd || a.total - b.total);
+  }).filter(d => !(d.totalOriginal > 0 && d.qtd === 0)) // esconde dívidas já quitadas
+    .sort((a,b)=> a.qtd - b.qtd || a.total - b.total);
+
+  if (sorted.length === 0) {
+    document.getElementById("dividas-lista").innerHTML = '<div style="text-align:center;color:#64748b;font-size:13px;padding:24px">🎉 Nenhuma dívida em aberto! Veja o histórico de quitadas na aba Histórico.</div>';
+    return;
+  }
   const maxTotal = sorted[0].total;
 
   // Total geral e total por ano (considerando só parcelas ainda não pagas)
@@ -1368,9 +1374,15 @@ function renderGerenciar() {
 
   // Dívidas
   const dl = document.getElementById('ger-dividas-lista');
-  const cartoes = DIVIDAS.filter(d=>d.cat==='Cartão');
-  const emprestimos = DIVIDAS.filter(d=>d.cat==='Empréstimo');
-  const outras = DIVIDAS.filter(d=>d.cat!=='Cartão' && d.cat!=='Empréstimo');
+  function isQuitada(d) {
+    const ativas = d.parcelas.filter(v => v > 0).length;
+    if (ativas === 0) return false; // dívida nova sem parcelas ainda, não esconder
+    return d.parcelas.every((v, idx) => v <= 0 || isPago(idx, d.nome));
+  }
+  const dividasAbertas = DIVIDAS.filter(d => !isQuitada(d));
+  const cartoes = dividasAbertas.filter(d=>d.cat==='Cartão');
+  const emprestimos = dividasAbertas.filter(d=>d.cat==='Empréstimo');
+  const outras = dividasAbertas.filter(d=>d.cat!=='Cartão' && d.cat!=='Empréstimo');
 
   function renderGrupo(lista, offset) {
     return lista.map((d, j) => {
