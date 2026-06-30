@@ -570,7 +570,7 @@ function calcMes(idx) {
     totalDiv += v;
     return { nome: d.nome, valor: v, cat: d.cat };
   }).filter(d => d.valor > 0);
-  const ess = ESSENCIAIS.reduce((s,e) => s+e.valor, 0);
+  const ess = ESSENCIAIS.reduce((s,e) => s + ((e.parcelas && e.parcelas[idx] > 0) ? e.parcelas[idx] : e.valor), 0);
   return { totalDiv, totalDesp: ess+totalDiv, sobra: RENDA-ess-totalDiv, det };
 }
 
@@ -601,7 +601,7 @@ function renderResumo() {
   if (idxAtual < 0) idxAtual = 0; // ainda não começou o plano: mostra o primeiro mês
   if (idxAtual >= MESES.length) idxAtual = MESES.length - 1; // plano encerrado: mostra o último mês
   const m = calcMes(idxAtual);
-  const ess = ESSENCIAIS.reduce((s,e)=>s+e.valor,0);
+  const ess = ESSENCIAIS.reduce((s,e)=>s+((e.parcelas && e.parcelas[idxAtual]>0)?e.parcelas[idxAtual]:e.valor),0);
 
   document.getElementById("hdr-renda").textContent = fmt(RENDA);
   document.getElementById("titulo-pizza").textContent = `Distribuição das Despesas (${MESES[idxAtual]})`;
@@ -695,7 +695,7 @@ function renderMensal() {
     </div>`;
 
   const m = calcMes(mesAtivo);
-  const ess = ESSENCIAIS.reduce((s,e)=>s+e.valor,0);
+  const ess = ESSENCIAIS.reduce((s,e)=>s+((e.parcelas && e.parcelas[mesAtivo]>0)?e.parcelas[mesAtivo]:e.valor),0);
 
   document.getElementById("mensal-lista").innerHTML = `
     <h3 style="color:#38bdf8;font-size:15px;margin-bottom:8px">${MESES[mesAtivo]}</h3>
@@ -761,9 +761,9 @@ function renderPagamentos() {
     </div>`;
 
   const m = calcMes(mesPagAtivo);
-  const ess = ESSENCIAIS.reduce((s,e)=>s+e.valor,0);
+  const ess = ESSENCIAIS.reduce((s,e)=>s+((e.parcelas && e.parcelas[mesPagAtivo]>0)?e.parcelas[mesPagAtivo]:e.valor),0);
   const pagosVal = m.det.filter(d=>isPago(mesPagAtivo,d.nome)).reduce((s,d)=>s+d.valor,0)
-    + ESSENCIAIS.filter(e=>isPago(mesPagAtivo,e.nome)).reduce((s,e)=>s+e.valor,0);
+    + ESSENCIAIS.filter(e=>isPago(mesPagAtivo,e.nome)).reduce((s,e)=>s+((e.parcelas && e.parcelas[mesPagAtivo]>0)?e.parcelas[mesPagAtivo]:e.valor),0);
   const rest = m.totalDesp - pagosVal;
   const pct = m.totalDesp>0 ? Math.round((pagosVal/m.totalDesp)*100) : 0;
 
@@ -848,7 +848,11 @@ function renderDividas() {
   const maxTotal = sorted[0].total;
 
   // Total geral e total por ano (considerando só parcelas ainda não pagas)
-  const totalGeral = sorted.reduce((s,d)=>s+d.total,0);
+  const totalEssAberto = ESSENCIAIS.reduce((s,e)=>{
+    if (!e.parcelas) return s;
+    return s + e.parcelas.reduce((t,v,idx)=> t + (v > 0 && !isPago(idx, e.nome) ? v : 0), 0);
+  }, 0);
+  const totalGeral = sorted.reduce((s,d)=>s+d.total,0) + totalEssAberto;
   const porAno = {};
   DIVIDAS.forEach(d=>{
     d.parcelas.forEach((v, idx)=>{
@@ -930,16 +934,18 @@ function renderProjecao() {
     }
   });
 
-  const ess = ESSENCIAIS.reduce((s,e)=>s+e.valor,0);
   const thead = `<thead><tr><th>Mês</th><th>Dívidas</th><th>Essenciais</th><th>Total</th><th>Sobra</th></tr></thead>`;
-  const tbody = "<tbody>"+dados.map((d,i)=>`
+  const tbody = "<tbody>"+dados.map((d,i)=>{
+    const essMes = ESSENCIAIS.reduce((s,e)=>s+((e.parcelas && e.parcelas[i]>0)?e.parcelas[i]:e.valor),0);
+    return `
     <tr>
       <td>${MESES[i]}</td>
       <td style="color:#ef4444">${fmt(d.totalDiv)}</td>
-      <td style="color:#3b82f6">${fmt(ess)}</td>
+      <td style="color:#3b82f6">${fmt(essMes)}</td>
       <td style="color:#f97316;font-weight:700">${fmt(d.totalDesp)}</td>
       <td style="color:${d.sobra>0?"#22c55e":"#ef4444"};font-weight:700">${fmt(d.sobra)}</td>
-    </tr>`).join("")+"</tbody>";
+    </tr>`;
+  }).join("")+"</tbody>";
   document.getElementById("proj-table").innerHTML = thead+tbody;
 }
 
