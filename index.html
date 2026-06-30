@@ -208,7 +208,18 @@ onSnapshot(doc(db, 'mrqlog', USER_DOC), (snap) => {
   } else {
     // Data changed from another device — sync silently
     window._poupancaCache = null; // Reset poupanca cache
-    // Update pagamentos from Firebase
+    // Update dados (essenciais, dividas, renda)
+    if (window.fbData && window.fbData['dados']) {
+      try {
+        const fbDados = JSON.parse(window.fbData['dados']);
+        if (fbDados && fbDados.dividas && fbDados.dividas.length > 0) {
+          RENDA = fbDados.renda || RENDA_DEFAULT;
+          ESSENCIAIS = fbDados.essenciais || JSON.parse(JSON.stringify(ESSENCIAIS_DEFAULT));
+          DIVIDAS = fbDados.dividas;
+          if (typeof renderResumo === 'function') renderResumo();
+        }
+      } catch(e) {}
+    }
     if (window.fbData && window.fbData['pagamentos']) {
       try {
         const fbPag = JSON.parse(window.fbData['pagamentos']);
