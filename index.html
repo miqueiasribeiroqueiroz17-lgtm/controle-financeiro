@@ -315,7 +315,6 @@ window.loadFromFirebaseKey = function(key, defaultVal) {
     <button class="tab-btn" onclick="showTab('pagamentos')">✅ Pagamentos</button>
     <button class="tab-btn" onclick="showTab('mensal')">📅 Mês a Mês</button>
     <button class="tab-btn" onclick="showTab('dividas')">💳 Dívidas</button>
-    <button class="tab-btn" onclick="showTab('projecao')">📈 Projeção</button>
     <button class="tab-btn" onclick="showTab('historico')">📜 Histórico</button>
     <button class="tab-btn" onclick="showTab('poupanca')">💰 Poupança</button>
     <button class="tab-btn" onclick="showTab('gerenciar')">⚙️ Gerenciar</button>
@@ -379,24 +378,6 @@ window.loadFromFirebaseKey = function(key, defaultVal) {
   <!-- DÍVIDAS -->
   <div id="tab-dividas" class="tab-panel">
     <div id="dividas-lista"></div>
-  </div>
-
-  <!-- PROJEÇÃO -->
-  <div id="tab-projecao" class="tab-panel">
-    <div class="panel" style="margin-bottom:20px">
-      <h3>Evolução das despesas ao longo do tempo</h3>
-      <canvas id="chart-proj" height="280"></canvas>
-    </div>
-    <div class="panel" style="margin-bottom:20px">
-      <h3>📉 Queda do total de dívidas mês a mês</h3>
-      <canvas id="chart-divida-evolucao" height="220"></canvas>
-    </div>
-    <div class="panel">
-      <h3>Tabela de projeção mensal</h3>
-      <div class="overflow-x">
-        <table class="proj-table" id="proj-table"></table>
-      </div>
-    </div>
   </div>
 
 
@@ -598,7 +579,6 @@ function showTab(name) {
   if (name === "mensal") renderMensal();
   if (name === "pagamentos") renderPagamentos();
   if (name === "dividas") renderDividas();
-  if (name === "projecao") { renderProjecao(); renderChartDividaEvolucao(); }
   if (name === "gerenciar") renderGerenciar();
   if (name === "historico") renderHistorico();
   if (name === "poupanca") renderPoupanca();
@@ -837,16 +817,21 @@ function togglePag(mesIdx, nome, valor) {
 
 // ========== DÍVIDAS ==========
 function renderDividas() {
-  const sorted = [...DIVIDAS].map(d=>({
-    nome:d.nome, cat:d.cat,
-    total:d.parcelas.reduce((s,v)=>s+v,0),
-    qtd:d.parcelas.length
-  })).sort((a,b)=>b.total-a.total);
+  const sorted = [...DIVIDAS].map(d=>{
+    let total = 0, qtd = 0, totalOriginal = 0;
+    d.parcelas.forEach((v, idx) => {
+      if (v > 0) {
+        totalOriginal++;
+        if (!isPago(idx, d.nome)) { total += v; qtd++; }
+      }
+    });
+    return { nome:d.nome, cat:d.cat, total, qtd, totalOriginal };
+  }).sort((a,b)=> a.qtd - b.qtd || a.total - b.total);
   const maxTotal = sorted[0].total;
 
   document.getElementById("dividas-lista").innerHTML = sorted.map(d=>{
     const cor = d.cat==="Empréstimo"?"#ef4444":"#f97316";
-    const pct = Math.round((d.qtd/MESES.length)*100);
+    const pct = d.totalOriginal > 0 ? Math.round(((d.totalOriginal - d.qtd)/d.totalOriginal)*100) : 0;
     return `<div class="divida-card" style="border:1px solid ${cor}33">
       <div class="divida-header">
         <div>
