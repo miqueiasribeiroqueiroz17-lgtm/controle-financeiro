@@ -829,7 +829,36 @@ function renderDividas() {
   }).sort((a,b)=> a.qtd - b.qtd || a.total - b.total);
   const maxTotal = sorted[0].total;
 
-  document.getElementById("dividas-lista").innerHTML = sorted.map(d=>{
+  // Total geral e total por ano (considerando só parcelas ainda não pagas)
+  const totalGeral = sorted.reduce((s,d)=>s+d.total,0);
+  const porAno = {};
+  DIVIDAS.forEach(d=>{
+    d.parcelas.forEach((v, idx)=>{
+      if (v > 0 && !isPago(idx, d.nome)) {
+        const ano = '20' + MESES[idx].slice(-2);
+        porAno[ano] = (porAno[ano] || 0) + v;
+      }
+    });
+  });
+  const anos = Object.keys(porAno).sort();
+  const resumoHtml = `
+    <div class="divida-card" style="border:1px solid #38bdf833;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px">Total em aberto</div>
+          <div style="font-size:22px;font-weight:700;color:#38bdf8">${fmt(totalGeral)}</div>
+        </div>
+        <div style="display:flex;gap:18px;flex-wrap:wrap">
+          ${anos.map(a=>`
+            <div style="text-align:right">
+              <div style="font-size:10px;color:#64748b">${a}</div>
+              <div style="font-size:15px;font-weight:700;color:#f97316">${fmt(porAno[a])}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById("dividas-lista").innerHTML = resumoHtml + sorted.map(d=>{
     const cor = d.cat==="Empréstimo"?"#ef4444":"#f97316";
     const pct = d.totalOriginal > 0 ? Math.round(((d.totalOriginal - d.qtd)/d.totalOriginal)*100) : 0;
     return `<div class="divida-card" style="border:1px solid ${cor}33">
@@ -1349,9 +1378,9 @@ function renderGerenciar() {
       const cor = d.cat === 'Empréstimo' ? '#ef4444' : d.cat === 'Cartão' ? '#f97316' : '#3b82f6';
       const bgCor = d.cat === 'Empréstimo' ? '#ef444422' : d.cat === 'Cartão' ? '#f9731622' : '#3b82f622';
       const icon = d.cat === 'Empréstimo' ? '💸' : d.cat === 'Cartão' ? '💳' : '📦';
-      const ativas = d.parcelas.filter(v => v > 0).length;
-      const total = d.parcelas.reduce((s,v)=>s+v,0);
-      const proxVal = d.parcelas.find(v=>v>0) || 0;
+      const ativas = d.parcelas.filter((v, idx) => v > 0 && !isPago(idx, d.nome)).length;
+      const total = d.parcelas.reduce((s,v,idx)=> s + (v > 0 && !isPago(idx, d.nome) ? v : 0), 0);
+      const proxVal = d.parcelas.find((v, idx) => v > 0 && !isPago(idx, d.nome)) || 0;
       return `
         <div style="background:#0f172a;border-radius:12px;padding:16px;border:1px solid ${cor}33;display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
@@ -1485,8 +1514,19 @@ function salvarDivida() {
     // Abrir parcelas do novo item
     setTimeout(() => abrirModalParcelas(DIVIDAS.length - 1), 300);
   } else {
+    const nomeAntigo = DIVIDAS[modalDividaIdx].nome;
     DIVIDAS[modalDividaIdx].nome = nome;
     DIVIDAS[modalDividaIdx].cat = cat;
+    if (nomeAntigo !== nome) {
+      Object.keys(pagamentos).forEach(key => {
+        if (key.endsWith('__' + nomeAntigo)) {
+          const mesIdx = key.split('__')[0];
+          pagamentos[mesIdx + '__' + nome] = pagamentos[key];
+          delete pagamentos[key];
+        }
+      });
+      salvar();
+    }
     showToast('✅ ' + nome + ' atualizado!');
     salvarDados();
     fecharModal('modal-divida');
@@ -1498,6 +1538,10 @@ function excluirDivida(i) {
   if (!confirm('Remover "' + DIVIDAS[i].nome + '" e todas as parcelas?')) return;
   const nome = DIVIDAS[i].nome;
   DIVIDAS.splice(i, 1);
+  Object.keys(pagamentos).forEach(key => {
+    if (key.endsWith('__' + nome)) delete pagamentos[key];
+  });
+  salvar();
   salvarDados();
   renderGerenciar();
   renderResumo();
@@ -1599,16 +1643,19 @@ function renderListaParcelas() {
     lista.innerHTML = '<div style="font-size:13px;color:#64748b;text-align:center;padding:12px">Nenhuma parcela cadastrada ainda.</div>';
     return;
   }
-  lista.innerHTML = '<div class="parcelas-grid">' + comValor.map(x => `
-    <div class="parcela-chip">
+  lista.innerHTML = '<div class="parcelas-grid">' + comValor.map(x => {
+    const pg = isPago(x.idx, d.nome);
+    return `
+    <div class="parcela-chip" style="${pg?'opacity:0.6':''}">
       <div>
-        <div class="parcela-mes">${x.m}</div>
+        <div class="parcela-mes">${x.m} ${pg?'✅':''}</div>
         <input type="number" step="0.01" value="${x.val}" 
           style="background:#1e293b;border:1px solid #1e3a5f;border-radius:4px;padding:3px 6px;color:#f97316;font-size:12px;width:80px;margin-top:2px"
           onchange="editarParcelaInline(${x.idx}, this.value)"/>
       </div>
       <button onclick="removerParcela(${x.idx})" style="background:none;border:none;color:#ef444488;cursor:pointer;font-size:14px;padding:0 0 0 4px">✕</button>
-    </div>`).join('') + '</div>';
+    </div>`;
+  }).join('') + '</div>';
 }
 function editarParcelaInline(mesIdx, val) {
   const v = parseFloat(val);
