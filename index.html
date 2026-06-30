@@ -777,13 +777,14 @@ function renderPagamentos() {
   let html = `<div class="section-divider">🏠 Essenciais</div>`;
   ESSENCIAIS.forEach(e=>{
     const pg = isPago(mesPagAtivo, e.nome);
-    html += `<div class="pag-item${pg?" pago":""}" onclick="togglePag(${mesPagAtivo},'${e.nome}',${e.valor})">
+    const valorMes = (e.parcelas && e.parcelas[mesPagAtivo] > 0) ? e.parcelas[mesPagAtivo] : e.valor;
+    html += `<div class="pag-item${pg?" pago":""}" onclick="togglePag(${mesPagAtivo},'${e.nome}',${valorMes})">
       <div class="pag-item-left">
         <div class="check-circle">${pg?"✓":""}</div>
         <div><div class="pag-nome">${e.nome}</div><div class="pag-cat">Essencial</div></div>
       </div>
       <div style="text-align:right">
-        <div class="pag-valor" style="color:${pg?"#86efac":"#3b82f6"}">${fmt(e.valor)}</div>
+        <div class="pag-valor" style="color:${pg?"#86efac":"#3b82f6"}">${fmt(valorMes)}</div>
         ${pg?`<div class="pago-badge">✅ PAGO</div>`:""}
       </div>
     </div>`;
@@ -951,7 +952,7 @@ function renderHistorico() {
   // Build month summaries
   const mesesComDados = MESES.map((mes, idx) => {
     const m = calcMes(idx);
-    const todosPagaveis = [...ESSENCIAIS.map(e=>({nome:e.nome,valor:e.valor,cat:'Essencial'})),
+    const todosPagaveis = [...ESSENCIAIS.map(e=>({nome:e.nome,valor:(e.parcelas && e.parcelas[idx] > 0) ? e.parcelas[idx] : e.valor,cat:'Essencial'})),
                            ...m.det.map(d=>({nome:d.nome,valor:d.valor,cat:d.cat}))];
     const pagos = todosPagaveis.filter(item => isPago(idx, item.nome));
     const totalPago = pagos.reduce((s,item) => {
