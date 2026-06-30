@@ -846,6 +846,15 @@ function renderDividas() {
       }
     });
   });
+  ESSENCIAIS.forEach(e=>{
+    if (!e.parcelas) return;
+    e.parcelas.forEach((v, idx)=>{
+      if (v > 0 && !isPago(idx, e.nome)) {
+        const ano = '20' + MESES[idx].slice(-2);
+        porAno[ano] = (porAno[ano] || 0) + v;
+      }
+    });
+  });
   const anos = Object.keys(porAno).sort();
   const resumoHtml = `
     <div class="divida-card" style="border:1px solid #38bdf833;margin-bottom:14px">
@@ -1341,6 +1350,7 @@ function resetarDados() {
 let modalEssencialIdx = -1; // -1 = novo, >= 0 = editar
 let modalDividaIdx = -1;
 let modalParcelaIdx = -1;
+let modalParcelaIsEss = false;
 
 function renderGerenciar() {
   // Renda
@@ -1363,6 +1373,7 @@ function renderGerenciar() {
           </div>
           <div style="display:flex;gap:8px;border-top:1px solid #1e3a5f;padding-top:10px">
             <button onclick="abrirModalEditarEssencial(${i})" style="flex:1;background:#f9731622;color:#f97316;border:1px solid #f9731644;border-radius:8px;padding:7px;font-size:12px;font-weight:600;cursor:pointer">✏️ Editar</button>
+            <button onclick="abrirModalParcelasEssencial(${i})" style="flex:1;background:#1e293b;color:#94a3b8;border:1px solid #1e3a5f;border-radius:8px;padding:7px;font-size:12px;font-weight:600;cursor:pointer">📋 Parcelas</button>
             <button onclick="excluirEssencial(${i})" style="background:#ef444422;color:#ef4444;border:1px solid #ef444444;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">🗑</button>
           </div>
         </div>`).join('')}
@@ -1636,19 +1647,30 @@ function importarBackup(event) {
 // --- PARCELAS ---
 function abrirModalParcelas(i) {
   modalParcelaIdx = i;
+  modalParcelaIsEss = false;
   const d = DIVIDAS[i];
   document.getElementById('modal-parcela-titulo').textContent = '📋 Parcelas — ' + d.nome;
-
   renderListaParcelas();
-
-  // Preenche seletor de meses
+  const sel = document.getElementById('input-nova-parcela-mes');
+  sel.innerHTML = MESES.map((m, idx) => `<option value="${idx}">${m}</option>`).join('');
+  document.getElementById('input-nova-parcela-val').value = '';
+  abrirModal('modal-parcela');
+}
+function abrirModalParcelasEssencial(i) {
+  modalParcelaIdx = i;
+  modalParcelaIsEss = true;
+  const e = ESSENCIAIS[i];
+  if (!e.parcelas) e.parcelas = [];
+  document.getElementById('modal-parcela-titulo').textContent = '📋 Parcelas — ' + e.nome;
+  renderListaParcelas();
   const sel = document.getElementById('input-nova-parcela-mes');
   sel.innerHTML = MESES.map((m, idx) => `<option value="${idx}">${m}</option>`).join('');
   document.getElementById('input-nova-parcela-val').value = '';
   abrirModal('modal-parcela');
 }
 function renderListaParcelas() {
-  const d = DIVIDAS[modalParcelaIdx];
+  const d = modalParcelaIsEss ? ESSENCIAIS[modalParcelaIdx] : DIVIDAS[modalParcelaIdx];
+  if (!d.parcelas) d.parcelas = [];
   const lista = document.getElementById('modal-parcela-lista');
   const comValor = MESES.map((m, idx) => ({ m, idx, val: d.parcelas[idx] || 0 })).filter(x => x.val > 0);
   if (comValor.length === 0) {
@@ -1671,13 +1693,17 @@ function renderListaParcelas() {
 }
 function editarParcelaInline(mesIdx, val) {
   const v = parseFloat(val);
-  DIVIDAS[modalParcelaIdx].parcelas[mesIdx] = v > 0 ? v : 0;
+  const d = modalParcelaIsEss ? ESSENCIAIS[modalParcelaIdx] : DIVIDAS[modalParcelaIdx];
+  if (!d.parcelas) d.parcelas = [];
+  d.parcelas[mesIdx] = v > 0 ? v : 0;
   salvarDados();
   renderResumo();
   showToast('✅ Parcela ' + MESES[mesIdx] + ' atualizada');
 }
 function removerParcela(mesIdx) {
-  DIVIDAS[modalParcelaIdx].parcelas[mesIdx] = 0;
+  const d = modalParcelaIsEss ? ESSENCIAIS[modalParcelaIdx] : DIVIDAS[modalParcelaIdx];
+  if (!d.parcelas) d.parcelas = [];
+  d.parcelas[mesIdx] = 0;
   salvarDados();
   renderListaParcelas();
   renderResumo();
@@ -1687,7 +1713,9 @@ function adicionarParcela() {
   const mesIdx = parseInt(document.getElementById('input-nova-parcela-mes').value);
   const val = parseFloat(document.getElementById('input-nova-parcela-val').value);
   if (!val || val <= 0) { showToast('⚠️ Informe um valor válido'); return; }
-  DIVIDAS[modalParcelaIdx].parcelas[mesIdx] = val;
+  const d = modalParcelaIsEss ? ESSENCIAIS[modalParcelaIdx] : DIVIDAS[modalParcelaIdx];
+  if (!d.parcelas) d.parcelas = [];
+  d.parcelas[mesIdx] = val;
   salvarDados();
   renderListaParcelas();
   renderResumo();
