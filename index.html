@@ -1934,8 +1934,9 @@ function getMesAtualIdx() {
   const m = now.getMonth(); // 0=Jan
   // MESES[0] = Jul/26 = mês 6 (julho) de 2026
   const baseYear = 2026, baseMonth = 6; // julho = índice 6
-  const diff = (y - baseYear) * 12 + (m - baseMonth);
-  if (diff < 0 || diff >= MESES.length) return -1;
+  const diff = (y - baseYear) * 12 + (m - baseMonth) + 1; // +1: mês atual já está sendo pago, mostra o próximo
+  if (diff < 0) return 0;
+  if (diff >= MESES.length) return MESES.length - 1;
   return diff;
 }
 
