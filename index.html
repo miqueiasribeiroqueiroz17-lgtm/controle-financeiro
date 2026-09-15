@@ -759,6 +759,11 @@ function renderPagamentos() {
   const rest = m.totalDesp - pagosVal;
   const pct = m.totalDesp>0 ? Math.round((pagosVal/m.totalDesp)*100) : 0;
 
+  // Atualiza o header (Despesas/mês e Sobra/mês) para refletir o mês navegado aqui
+  document.getElementById("hdr-renda").textContent = fmt(RENDA);
+  document.getElementById("hdr-desp").textContent = fmt(m.totalDesp);
+  document.getElementById("hdr-sobra").textContent = fmt(m.sobra);
+
   document.getElementById("prog-titulo").textContent = MESES[mesPagAtivo]+" — Progresso";
   document.getElementById("prog-pago").textContent = fmt(pagosVal);
   document.getElementById("prog-rest").textContent = fmt(rest);
