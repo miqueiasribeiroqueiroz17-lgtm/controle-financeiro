@@ -698,11 +698,36 @@ function renderResumo() {
   const registroPoupanca = loadPoupanca();
   const totalGuardadoReal = Object.values(registroPoupanca).reduce((s,v) => s + parseFloat(v||0), 0);
   const pctReservaReal = Math.min(100, Math.round((totalGuardadoReal / RESERVA_IDEAL) * 100));
+
+  // Total pago no ano atual (dívidas + essenciais)
+  const anoAtual = new Date().getFullYear();
+  let totalPagoAno = 0, qtdPagoAno = 0;
+  MESES.forEach((mesLabel, idx) => {
+    const ano = 2000 + parseInt(mesLabel.slice(-2), 10);
+    if (ano !== anoAtual) return;
+    DIVIDAS.forEach(d => {
+      if (d.parcelas[idx] > 0 && isPago(idx, d.nome)) {
+        const vp = getValorPago(idx, d.nome);
+        totalPagoAno += (vp !== null ? vp : d.parcelas[idx]);
+        qtdPagoAno++;
+      }
+    });
+    ESSENCIAIS.forEach(e => {
+      const v = (e.parcelas && e.parcelas[idx] > 0) ? e.parcelas[idx] : e.valor;
+      if (isPago(idx, e.nome)) {
+        const vp = getValorPago(idx, e.nome);
+        totalPagoAno += (vp !== null ? vp : v);
+        qtdPagoAno++;
+      }
+    });
+  });
+
   document.getElementById("analise-grid").innerHTML = [
     { label:"Comprometimento da renda", val:`${comp}%`, sub:"Ideal: abaixo de 70%", cor:"#ef4444" },
     { label:"Empréstimos vs renda", val:`${empPct}%`, sub:"Apenas empréstimos", cor:"#f97316" },
     { label:"Meses para quitar tudo", val:`~${mesesQuitarTudo} meses`, sub:maiorPrazo ? `${maiorPrazo.nome} é o mais longo` : "—", cor:"#38bdf8" },
     { label:"Reserva de emergência", val:`${pctReservaReal}% atingida`, sub:fmt(totalGuardadoReal)+" de "+fmt(RESERVA_IDEAL), cor:"#22c55e" },
+    { label:`Pago em ${anoAtual}`, val:fmt(totalPagoAno), sub:`${qtdPagoAno} conta${qtdPagoAno!==1?'s':''} quitada${qtdPagoAno!==1?'s':''} no ano`, cor:"#22c55e" },
   ].map(c=>`
     <div class="alert-card">
       <div class="label">${c.label}</div>
