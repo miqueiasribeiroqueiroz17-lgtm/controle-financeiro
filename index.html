@@ -217,6 +217,7 @@ onSnapshot(doc(db, 'mrqlog', USER_DOC), (snap) => {
           RENDA = fbDados.renda || RENDA_DEFAULT;
           ESSENCIAIS = fbDados.essenciais || JSON.parse(JSON.stringify(ESSENCIAIS_DEFAULT));
           DIVIDAS = fbDados.dividas;
+          AJUSTE_ANTERIOR = fbDados.ajusteAnterior || 0;
           if (typeof renderResumo === 'function') renderResumo();
         }
       } catch(e) {}
@@ -407,6 +408,19 @@ window.loadFromFirebaseKey = function(key, defaultVal) {
 
     <div class="ger-section">
       <div class="ger-section-title">
+        <span>📅 Gasto estimado antes do app</span>
+      </div>
+      <div class="renda-box">
+        <div>
+          <div style="font-size:11px;color:#64748b">Jan–Mai, antes de existir o MRQ Log</div>
+          <div style="font-size:22px;font-weight:700;color:#38bdf8" id="ger-ajuste-val">—</div>
+        </div>
+        <button class="btn-sm-orange" onclick="abrirModalAjusteAnterior()">✏️ Editar</button>
+      </div>
+    </div>
+
+    <div class="ger-section">
+      <div class="ger-section-title">
         <span>🏠 Despesas Essenciais</span>
         <button class="btn-sm-orange" onclick="abrirModalNovaEssencial()">+ Adicionar</button>
       </div>
@@ -488,7 +502,7 @@ let chartMensal = null, chartProj = null;
 
 // Dados editáveis carregados do storage
 const DADOS_KEY = 'mrqlog_dados_v1';
-let RENDA, ESSENCIAIS, DIVIDAS;
+let RENDA, ESSENCIAIS, DIVIDAS, AJUSTE_ANTERIOR;
 
 const APP_VERSION = 'v5';
 const VERSION_KEY = 'mrqlog_version';
@@ -497,6 +511,7 @@ function resetarParaPadrao() {
   RENDA = RENDA_DEFAULT;
   ESSENCIAIS = JSON.parse(JSON.stringify(ESSENCIAIS_DEFAULT));
   DIVIDAS = JSON.parse(JSON.stringify(DIVIDAS_DEFAULT));
+  AJUSTE_ANTERIOR = 0;
 }
 
 function carregarDados() {
@@ -508,6 +523,7 @@ function carregarDados() {
         RENDA = d.renda || RENDA_DEFAULT;
         ESSENCIAIS = d.essenciais && d.essenciais.length > 0 ? d.essenciais : JSON.parse(JSON.stringify(ESSENCIAIS_DEFAULT));
         DIVIDAS = d.dividas;
+        AJUSTE_ANTERIOR = d.ajusteAnterior || 0;
         return;
       }
     }
@@ -523,6 +539,7 @@ function carregarDados() {
     if (raw) {
       const d = JSON.parse(raw);
       RENDA = d.renda || RENDA_DEFAULT;
+      AJUSTE_ANTERIOR = d.ajusteAnterior || 0;
       ESSENCIAIS = d.essenciais && d.essenciais.length > 0 ? d.essenciais : JSON.parse(JSON.stringify(ESSENCIAIS_DEFAULT));
       DIVIDAS = d.dividas && d.dividas.length > 0 ? d.dividas : JSON.parse(JSON.stringify(DIVIDAS_DEFAULT));
     } else {
@@ -535,8 +552,8 @@ function carregarDados() {
 carregarDados();
 
 function salvarDados() {
-  if (window.saveToFirebase) window.saveToFirebase('dados', { renda: RENDA, essenciais: ESSENCIAIS, dividas: DIVIDAS });
-  try { localStorage.setItem(DADOS_KEY, JSON.stringify({ renda: RENDA, essenciais: ESSENCIAIS, dividas: DIVIDAS })); } catch {}
+  if (window.saveToFirebase) window.saveToFirebase('dados', { renda: RENDA, essenciais: ESSENCIAIS, dividas: DIVIDAS, ajusteAnterior: AJUSTE_ANTERIOR });
+  try { localStorage.setItem(DADOS_KEY, JSON.stringify({ renda: RENDA, essenciais: ESSENCIAIS, dividas: DIVIDAS, ajusteAnterior: AJUSTE_ANTERIOR })); } catch {}
 }
 
 // Pagamentos loaded after firebase-ready event
@@ -707,27 +724,30 @@ function renderResumo() {
     if (ano !== anoAtual) return;
     DIVIDAS.forEach(d => {
       if (d.parcelas[idx] > 0 && isPago(idx, d.nome)) {
-        const vp = getValorPago(idx, d.nome);
-        totalPagoAno += (vp !== null ? vp : d.parcelas[idx]);
+        totalPagoAno += d.parcelas[idx];
         qtdPagoAno++;
       }
     });
     ESSENCIAIS.forEach(e => {
       const v = (e.parcelas && e.parcelas[idx] > 0) ? e.parcelas[idx] : e.valor;
       if (isPago(idx, e.nome)) {
-        const vp = getValorPago(idx, e.nome);
-        totalPagoAno += (vp !== null ? vp : v);
+        totalPagoAno += v;
         qtdPagoAno++;
       }
     });
   });
+
+  const totalPagoAnoComAjuste = totalPagoAno + (AJUSTE_ANTERIOR || 0);
+  const subPagoAno = (AJUSTE_ANTERIOR > 0)
+    ? `${qtdPagoAno} conta${qtdPagoAno!==1?'s':''} no app + ${fmt(AJUSTE_ANTERIOR)} estimado antes`
+    : `${qtdPagoAno} conta${qtdPagoAno!==1?'s':''} quitada${qtdPagoAno!==1?'s':''} no ano`;
 
   document.getElementById("analise-grid").innerHTML = [
     { label:"Comprometimento da renda", val:`${comp}%`, sub:"Ideal: abaixo de 70%", cor:"#ef4444" },
     { label:"Empréstimos vs renda", val:`${empPct}%`, sub:"Apenas empréstimos", cor:"#f97316" },
     { label:"Meses para quitar tudo", val:`~${mesesQuitarTudo} meses`, sub:maiorPrazo ? `${maiorPrazo.nome} é o mais longo` : "—", cor:"#38bdf8" },
     { label:"Reserva de emergência", val:`${pctReservaReal}% atingida`, sub:fmt(totalGuardadoReal)+" de "+fmt(RESERVA_IDEAL), cor:"#22c55e" },
-    { label:`Pago em ${anoAtual}`, val:fmt(totalPagoAno), sub:`${qtdPagoAno} conta${qtdPagoAno!==1?'s':''} quitada${qtdPagoAno!==1?'s':''} no ano`, cor:"#22c55e" },
+    { label:`Pago em ${anoAtual}`, val:fmt(totalPagoAnoComAjuste), sub:subPagoAno, cor:"#22c55e" },
   ].map(c=>`
     <div class="alert-card">
       <div class="label">${c.label}</div>
@@ -1440,6 +1460,7 @@ let modalParcelaIsEss = false;
 function renderGerenciar() {
   // Renda
   document.getElementById('ger-renda-val').textContent = fmt(RENDA);
+  document.getElementById('ger-ajuste-val').textContent = fmt(AJUSTE_ANTERIOR || 0);
 
   // Dívidas (calculado antes para poder juntar as "Essencial" no bloco de Essenciais)
   const dl = document.getElementById('ger-dividas-lista');
@@ -1552,6 +1573,20 @@ function salvarRenda() {
   renderGerenciar();
   renderResumo();
   showToast('✅ Renda atualizada para ' + fmt(RENDA));
+}
+
+function abrirModalAjusteAnterior() {
+  document.getElementById('input-ajuste').value = AJUSTE_ANTERIOR || '';
+  abrirModal('modal-ajuste');
+}
+function salvarAjusteAnterior() {
+  const v = parseFloat(document.getElementById('input-ajuste').value);
+  AJUSTE_ANTERIOR = (!isNaN(v) && v >= 0) ? v : 0;
+  salvarDados();
+  fecharModal('modal-ajuste');
+  renderGerenciar();
+  renderResumo();
+  showToast('✅ Valor estimado salvo: ' + fmt(AJUSTE_ANTERIOR));
 }
 
 // --- ESSENCIAIS ---
@@ -1838,6 +1873,26 @@ function adicionarParcela() {
       </div>
     </div>
 
+    <div id="modal-ajuste" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);z-index:99999;align-items:center;justify-content:center;padding:16px;">
+      <div style="background:#1e293b;border-radius:16px;width:100%;max-width:500px;border:1px solid #1e4d8c;overflow:hidden;">
+        <div style="background:linear-gradient(90deg,#0f3460,#16213e);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #f97316;">
+          <h3 style="font-size:15px;font-weight:700;color:#fbbf24;">📅 Gasto estimado antes do app</h3>
+          <button onclick="fecharModal('modal-ajuste')" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;line-height:1;">✕</button>
+        </div>
+        <div style="padding:20px;">
+          <div style="margin-bottom:14px;">
+            <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px;">Valor estimado (R$)</label>
+            <input class="modal-input" type="number" id="input-ajuste" step="0.01" placeholder="Ex: 5000.00" style="width:100%;background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:10px 12px;color:#e2e8f0;font-size:14px;outline:none;"/>
+            <div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.5">É uma estimativa sua de quanto pagou em dívidas/contas nos meses em que o app ainda não existia (ex: Jan–Mai). Esse valor é só somado ao card "Pago no ano" do Resumo — não mexe em nenhum mês ou dívida cadastrada.</div>
+          </div>
+        </div>
+        <div style="padding:14px 20px;border-top:1px solid #0f172a;display:flex;gap:10px;justify-content:flex-end;">
+          <button onclick="fecharModal('modal-ajuste')" style="background:#1e3a5f;color:#94a3b8;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">Cancelar</button>
+          <button onclick="salvarAjusteAnterior()" style="background:#f97316;color:white;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">Salvar</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-essencial" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);z-index:99999;align-items:center;justify-content:center;padding:16px;">
       <div style="background:#1e293b;border-radius:16px;width:100%;max-width:500px;border:1px solid #1e4d8c;overflow:hidden;">
         <div style="background:linear-gradient(90deg,#0f3460,#16213e);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #f97316;">
@@ -1934,7 +1989,7 @@ function fecharModal(id) {
 
 // Close on overlay click
 document.addEventListener('click', function(e) {
-  ['modal-renda','modal-essencial','modal-divida','modal-parcela'].forEach(function(id) {
+  ['modal-renda','modal-ajuste','modal-essencial','modal-divida','modal-parcela'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el && e.target === el) el.style.display = 'none';
   });
@@ -1976,6 +2031,7 @@ function syncFromFirebase() {
       RENDA = fbDados.renda || RENDA_DEFAULT;
       ESSENCIAIS = fbDados.essenciais || JSON.parse(JSON.stringify(ESSENCIAIS_DEFAULT));
       DIVIDAS = fbDados.dividas;
+      AJUSTE_ANTERIOR = fbDados.ajusteAnterior || 0;
     }
     // Sync poupanca cache
     const fbPoupa = window.loadFromFirebaseKey('poupanca', null);
