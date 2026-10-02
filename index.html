@@ -612,8 +612,8 @@ function renderResumo() {
 
   // Pizza
   const catMap = {};
-  m.det.forEach(d => { catMap[d.cat] = (catMap[d.cat]||0)+d.valor; });
-  catMap["Essenciais"] = ess;
+  m.det.forEach(d => { const chave = d.cat === "Essencial" ? "Essenciais" : d.cat; catMap[chave] = (catMap[chave]||0)+d.valor; });
+  catMap["Essenciais"] = (catMap["Essenciais"]||0) + ess;
   const labels = Object.keys(catMap);
   const vals = Object.values(catMap);
   new Chart(document.getElementById("chart-pizza"), {
@@ -1412,34 +1412,7 @@ function renderGerenciar() {
   // Renda
   document.getElementById('ger-renda-val').textContent = fmt(RENDA);
 
-  // Essenciais
-  const totalEss = ESSENCIAIS.reduce((s,e)=>s+e.valor,0);
-  const el = document.getElementById('ger-essenciais-lista');
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
-      ${ESSENCIAIS.map((e, i) => `
-        <div style="background:#0f172a;border-radius:12px;padding:16px;border:1px solid #1e3a5f;display:flex;flex-direction:column;gap:10px">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-            <div>
-              <div style="font-size:14px;font-weight:600;color:#e2e8f0">${e.nome}</div>
-              <div style="font-size:20px;font-weight:700;color:#3b82f6;margin-top:4px">${fmt(e.valor)}</div>
-              <div style="font-size:11px;color:#64748b">por mês</div>
-            </div>
-            <div style="background:#3b82f622;border-radius:8px;padding:6px;font-size:18px">🏠</div>
-          </div>
-          <div style="display:flex;gap:8px;border-top:1px solid #1e3a5f;padding-top:10px">
-            <button onclick="abrirModalEditarEssencial(${i})" style="flex:1;background:#f9731622;color:#f97316;border:1px solid #f9731644;border-radius:8px;padding:7px;font-size:12px;font-weight:600;cursor:pointer">✏️ Editar</button>
-            <button onclick="abrirModalParcelasEssencial(${i})" style="flex:1;background:#1e293b;color:#94a3b8;border:1px solid #1e3a5f;border-radius:8px;padding:7px;font-size:12px;font-weight:600;cursor:pointer">📋 Parcelas</button>
-            <button onclick="excluirEssencial(${i})" style="background:#ef444422;color:#ef4444;border:1px solid #ef444444;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">🗑</button>
-          </div>
-        </div>`).join('')}
-    </div>
-    <div style="background:#0f172a;border-radius:10px;padding:12px 16px;margin-top:12px;border:1px solid #22c55e33;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:12px;color:#64748b">Total essenciais/mês</span>
-      <span style="font-size:16px;font-weight:700;color:#22c55e">${fmt(totalEss)}</span>
-    </div>`;
-
-  // Dívidas
+  // Dívidas (calculado antes para poder juntar as "Essencial" no bloco de Essenciais)
   const dl = document.getElementById('ger-dividas-lista');
   function isQuitada(d) {
     const ativas = d.parcelas.filter(v => v > 0).length;
@@ -1449,7 +1422,8 @@ function renderGerenciar() {
   const dividasAbertas = DIVIDAS.filter(d => !isQuitada(d));
   const cartoes = dividasAbertas.filter(d=>d.cat==='Cartão');
   const emprestimos = dividasAbertas.filter(d=>d.cat==='Empréstimo');
-  const outras = dividasAbertas.filter(d=>d.cat!=='Cartão' && d.cat!=='Empréstimo');
+  const essenciaisDividas = dividasAbertas.filter(d=>d.cat==='Essencial');
+  const outras = dividasAbertas.filter(d=>d.cat!=='Cartão' && d.cat!=='Empréstimo' && d.cat!=='Essencial');
 
   function renderGrupo(lista, offset) {
     return lista.map((d, j) => {
@@ -1505,6 +1479,34 @@ function renderGerenciar() {
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
       ${renderGrupo(outras)}
     </div>` : ''}`;
+
+  // Essenciais (despesas fixas + dívidas marcadas como "Essencial")
+  const totalEss = ESSENCIAIS.reduce((s,e)=>s+e.valor,0);
+  const el = document.getElementById('ger-essenciais-lista');
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+      ${ESSENCIAIS.map((e, i) => `
+        <div style="background:#0f172a;border-radius:12px;padding:16px;border:1px solid #1e3a5f;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#e2e8f0">${e.nome}</div>
+              <div style="font-size:20px;font-weight:700;color:#3b82f6;margin-top:4px">${fmt(e.valor)}</div>
+              <div style="font-size:11px;color:#64748b">por mês</div>
+            </div>
+            <div style="background:#3b82f622;border-radius:8px;padding:6px;font-size:18px">🏠</div>
+          </div>
+          <div style="display:flex;gap:8px;border-top:1px solid #1e3a5f;padding-top:10px">
+            <button onclick="abrirModalEditarEssencial(${i})" style="flex:1;background:#f9731622;color:#f97316;border:1px solid #f9731644;border-radius:8px;padding:7px;font-size:12px;font-weight:600;cursor:pointer">✏️ Editar</button>
+            <button onclick="abrirModalParcelasEssencial(${i})" style="flex:1;background:#1e293b;color:#94a3b8;border:1px solid #1e3a5f;border-radius:8px;padding:7px;font-size:12px;font-weight:600;cursor:pointer">📋 Parcelas</button>
+            <button onclick="excluirEssencial(${i})" style="background:#ef444422;color:#ef4444;border:1px solid #ef444444;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">🗑</button>
+          </div>
+        </div>`).join('')}
+      ${renderGrupo(essenciaisDividas)}
+    </div>
+    <div style="background:#0f172a;border-radius:10px;padding:12px 16px;margin-top:12px;border:1px solid #22c55e33;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:#64748b">Total essenciais/mês</span>
+      <span style="font-size:16px;font-weight:700;color:#22c55e">${fmt(totalEss)}</span>
+    </div>`;
 }
 
 // --- RENDA ---
