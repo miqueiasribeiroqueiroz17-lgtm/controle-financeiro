@@ -684,8 +684,12 @@ function renderResumo() {
   const comp = ((m.totalDesp/RENDA)*100).toFixed(1);
   const totalEmprestimosMes = m.det.filter(d=>d.cat==="Empréstimo").reduce((s,d)=>s+d.valor,0);
   const empPct = ((totalEmprestimosMes/RENDA)*100).toFixed(1);
-  const maiorPrazo = [...DIVIDAS].sort((a,b)=>b.parcelas.length-a.parcelas.length)[0];
-  const mesesQuitarTudo = maiorPrazo ? maiorPrazo.parcelas.length : 0;
+  const prazosRestantes = DIVIDAS.map(d => ({
+    nome: d.nome,
+    restantes: d.parcelas.filter((v, idx) => v > 0 && !isPago(idx, d.nome)).length
+  })).filter(d => d.restantes > 0).sort((a,b)=>b.restantes-a.restantes);
+  const maiorPrazo = prazosRestantes[0];
+  const mesesQuitarTudo = maiorPrazo ? maiorPrazo.restantes : 0;
   // Força busca atualizada da poupança do Firebase
   if (window.loadFromFirebaseKey) {
     const fbPoupa = window.loadFromFirebaseKey('poupanca', null);
