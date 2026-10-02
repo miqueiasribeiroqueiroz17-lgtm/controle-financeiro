@@ -622,7 +622,8 @@ function renderResumo() {
   });
 
   // Barras horizontais
-  const sorted = [...DIVIDAS].map(d=>({ nome:d.nome, total:d.parcelas.reduce((s,v)=>s+v,0), cat:d.cat }))
+  const sorted = [...DIVIDAS].map(d=>({ nome:d.nome, total:d.parcelas.reduce((s,v,idx)=> s + (v > 0 && !isPago(idx, d.nome) ? v : 0), 0), cat:d.cat }))
+    .filter(d=>d.total>0)
     .sort((a,b)=>b.total-a.total).slice(0,6);
   new Chart(document.getElementById("chart-barras"), {
     type:"bar",
